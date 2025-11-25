@@ -204,6 +204,66 @@ app.get('/api/playlists/:id', async (req, res) => {
   }
 });
 
+// 5. Delete a Playlist and all its songs
+app.delete('/api/playlists/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find and delete the playlist
+    const playlist = await Playlist.findByIdAndDelete(id);
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    // Find all songs in this playlist
+    const songs = await Song.find({ playlistId: id });
+    
+    // Delete audio files
+    songs.forEach(song => {
+      if (song.audioFile) {
+        const filePath = path.join(__dirname, song.audioFile.replace(/^\//, ''));
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+    });
+
+    // Delete all songs in this playlist
+    await Song.deleteMany({ playlistId: id });
+
+    console.log(`Playlist deleted: ${playlist.name}`);
+    res.json({ message: 'Playlist and all songs deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. Delete a single Song
+app.delete('/api/songs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find and delete the song
+    const song = await Song.findByIdAndDelete(id);
+    if (!song) {
+      return res.status(404).json({ error: 'Song not found' });
+    }
+
+    // Delete audio file
+    if (song.audioFile) {
+      const filePath = path.join(__dirname, song.audioFile.replace(/^\//, ''));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    console.log(`Song deleted: ${song.title}`);
+    res.json({ message: 'Song deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

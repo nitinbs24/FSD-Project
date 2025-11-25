@@ -192,7 +192,7 @@ const SongForm = ({ playlistId, onSongAdded }) => {
     );
 };
 
-const PlaylistDetails = ({ playlistId }) => {
+const PlaylistDetails = ({ playlistId, onPlaylistDeleted }) => {
     const [playlist, setPlaylist] = useState(null);
     const [songs, setSongs] = useState([]);
     const [currentSong, setCurrentSong] = useState(null);
@@ -220,6 +220,31 @@ const PlaylistDetails = ({ playlistId }) => {
         setCurrentSong(song);
     };
 
+    const deleteSong = async (songId) => {
+        if (!confirm('Are you sure you want to delete this song?')) return;
+        try {
+            await axios.delete(`/api/songs/${songId}`);
+            setSongs(songs.filter(s => s._id !== songId));
+            if (currentSong && currentSong._id === songId) {
+                setCurrentSong(null);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error deleting song');
+        }
+    };
+
+    const deletePlaylist = async () => {
+        if (!confirm(`Are you sure you want to delete "${playlist.name}" and all its songs?`)) return;
+        try {
+            await axios.delete(`/api/playlists/${playlistId}`);
+            onPlaylistDeleted(playlistId);
+        } catch (err) {
+            console.error(err);
+            alert('Error deleting playlist');
+        }
+    };
+
     if (!playlistId) {
         return (
             <div className="card empty-state">
@@ -233,7 +258,20 @@ const PlaylistDetails = ({ playlistId }) => {
     return (
         <div>
             <div className="card">
-                <h2>{playlist.name}</h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h2 style={{ marginBottom: 0 }}>{playlist.name}</h2>
+                    <button 
+                        onClick={deletePlaylist}
+                        style={{ 
+                            width: 'auto', 
+                            padding: '0.5rem 1rem', 
+                            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        🗑️ Delete Playlist
+                    </button>
+                </div>
                 <p style={{ color: '#94a3b8', marginBottom: '1.5rem' }}>👤 Created by {playlist.creator}</p>
                 
                 <div className="songs-container">
@@ -245,14 +283,35 @@ const PlaylistDetails = ({ playlistId }) => {
                             <div 
                                 key={song._id} 
                                 className="song-item"
-                                onClick={() => playSong(song)}
-                                style={{ cursor: 'pointer' }}
+                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                             >
-                                <div>
+                                <div 
+                                    onClick={() => playSong(song)}
+                                    style={{ cursor: 'pointer', flex: 1 }}
+                                >
                                     <span className="song-title">🎵 {song.title}</span>
                                     <span className="song-artist" style={{ display: 'block', fontSize: '0.85rem', marginTop: '0.25rem' }}>👤 {song.artist}</span>
                                 </div>
-                                <span style={{ color: '#818cf8', fontSize: '1.1rem', fontWeight: '600' }}>▶️ Play</span>
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                    <span 
+                                        onClick={() => playSong(song)}
+                                        style={{ color: '#818cf8', fontSize: '1.1rem', fontWeight: '600', cursor: 'pointer' }}
+                                    >
+                                        ▶️ Play
+                                    </span>
+                                    <button
+                                        onClick={() => deleteSong(song._id)}
+                                        style={{
+                                            width: 'auto',
+                                            padding: '0.4rem 0.75rem',
+                                            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                                            fontSize: '0.85rem',
+                                            marginLeft: '0.5rem'
+                                        }}
+                                    >
+                                        🗑️
+                                    </button>
+                                </div>
                             </div>
                         ))
                     )}
@@ -286,6 +345,11 @@ const App = () => {
     const handlePlaylistCreated = (newPlaylist) => {
         setPlaylists([newPlaylist, ...playlists]);
         setSelectedPlaylistId(newPlaylist._id);
+    };
+
+    const handlePlaylistDeleted = (deletedId) => {
+        setPlaylists(playlists.filter(p => p._id !== deletedId));
+        setSelectedPlaylistId(null);
     };
 
     return (
@@ -322,7 +386,7 @@ const App = () => {
 
                 {/* Right Column: Details & Songs */}
                 <div>
-                    <PlaylistDetails playlistId={selectedPlaylistId} />
+                    <PlaylistDetails playlistId={selectedPlaylistId} onPlaylistDeleted={handlePlaylistDeleted} />
                 </div>
             </div>
         </div>
