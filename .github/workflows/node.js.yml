@@ -21,34 +21,37 @@ jobs:
         node-version: [18.x]
 
     steps:
-    - name: Checkout Code
+    # --- SETUP STAGE (Merged) ---
+    - name: Setup Environment
       uses: actions/checkout@v3
 
-    # --- NEW SAST STAGE (Source Code Scan) ---
-    - name: SAST Scan (njsscan)
+    # We can't merge "uses" steps easily, so SAST stays separate
+    - name: SAST Security Scan
       uses: ajinabraham/njsscan-action@master
       with:
-        args: '.' 
-      continue-on-error: true # Recommended: Don't stop pipeline for minor warnings, just report them
+        args: '.'
+      continue-on-error: true
 
-    - name: Use Node.js ${{ matrix.node-version }}
+    - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
 
-    - name: Install Dependencies
-      run: npm ci
-
-    # --- SCA STAGE (Dependency Scan) ---
-    - name: Security Check (OWASP Top 10 Dependencies)
-      run: npm audit --audit-level=high
-
-    - name: Run Tests
-      run: npm test
-
-    - name: Verify Server Starts
+    # --- MAIN MERGED STAGE (The Big Change) ---
+    # Here we combine Install, Audit, Test, and Verify into ONE step
+    - name: Install, Build & Verify
       run: |
+        echo "🔹 Installing Dependencies..."
+        npm ci
+
+        echo "🔹 Running OWASP Security Check..."
+        npm audit --audit-level=high
+
+        echo "🔹 Running Unit Tests..."
+        npm test
+
+        echo "🔹 Verifying Server Startup..."
         timeout 10s node server.js || code=$?; if [[ $code -ne 124 && $code -ne 0 ]]; then exit $code; fi
       env:
         PORT: 3000
