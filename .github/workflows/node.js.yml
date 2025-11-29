@@ -21,25 +21,25 @@ jobs:
         node-version: [18.x]
 
     steps:
-    # --- SETUP STAGE (Merged) ---
+    # 1. Get the Code
     - name: Setup Environment
       uses: actions/checkout@v3
 
-    # We can't merge "uses" steps easily, so SAST stays separate
+    # 2. SAST Security Scan
     - name: SAST Security Scan
       uses: ajinabraham/njsscan-action@master
       with:
         args: '.'
       continue-on-error: true
 
+    # 3. Setup Node.js
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
 
-    # --- MAIN MERGED STAGE (The Big Change) ---
-    # Here we combine Install, Audit, Test, and Verify into ONE step
+    # 4. Main Verification Stage (Merged for cleaner UI)
     - name: Install, Build & Verify
       run: |
         echo "🔹 Installing Dependencies..."
@@ -52,6 +52,17 @@ jobs:
         npm test
 
         echo "🔹 Verifying Server Startup..."
+        # Starts server, waits 10s. If it crashes, exit code will be non-zero.
         timeout 10s node server.js || code=$?; if [[ $code -ne 124 && $code -ne 0 ]]; then exit $code; fi
+
+        echo "🔹 Building Docker Image..."
+        # This proves your Dockerfile is correct before we deploy
+        docker build . --file Dockerfile --tag my-music-app:latest
       env:
         PORT: 3000
+
+    # 5. DEPLOY STAGE (The Hook)
+    # This only runs if the previous steps passed AND we are on the 'main' branch
+    - name: Trigger Render Deployment
+      if: github.ref == 'refs/heads/main' && success()
+      run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
