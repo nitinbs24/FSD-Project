@@ -10,7 +10,6 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
-    # This creates a temporary MongoDB server for testing
     services:
       mongodb:
         image: mongo:5.0
@@ -22,30 +21,34 @@ jobs:
         node-version: [18.x]
 
     steps:
-    # 1. Get the code
     - name: Checkout Code
       uses: actions/checkout@v3
 
-    # 2. Install Node.js
+    # --- NEW SAST STAGE (Source Code Scan) ---
+    - name: SAST Scan (njsscan)
+      uses: ajinabraham/njsscan-action@master
+      with:
+        args: '.' 
+      continue-on-error: true # Recommended: Don't stop pipeline for minor warnings, just report them
+
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
 
-    # 3. Install your specific dependencies (express, mongoose, etc.)
     - name: Install Dependencies
       run: npm ci
 
-    # 4. Run the test script (Now passing thanks to Step 1)
+    # --- SCA STAGE (Dependency Scan) ---
+    - name: Security Check (OWASP Top 10 Dependencies)
+      run: npm audit --audit-level=high
+
     - name: Run Tests
       run: npm test
 
-    # 5. Smoke Test: Try to start the server to see if it crashes
-    # We use 'timeout' to run it for 10 seconds then stop it successfully
     - name: Verify Server Starts
       run: |
         timeout 10s node server.js || code=$?; if [[ $code -ne 124 && $code -ne 0 ]]; then exit $code; fi
       env:
-        # If you had a .env file, you would map secrets here
         PORT: 3000
